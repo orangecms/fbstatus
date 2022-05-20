@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/fogleman/gg"
-	"github.com/gokrazy/fbstatus/internal/console"
+	// "github.com/gokrazy/fbstatus/internal/console"
 	"github.com/gokrazy/fbstatus/internal/fb"
 	"github.com/gokrazy/fbstatus/internal/fbimage"
 	"github.com/gokrazy/gokrazy"
@@ -88,15 +88,17 @@ func fbstatus() error {
 	ctx, canc := signal.NotifyContext(ctx, os.Interrupt)
 	defer canc()
 
-	cons, err := console.LeaseForGraphics()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := cons.Cleanup(); err != nil {
-			log.Print(err)
+	/*
+		cons, err := console.LeaseForGraphics()
+		if err != nil {
+			return err
 		}
-	}()
+		defer func() {
+			if err := cons.Cleanup(); err != nil {
+				log.Print(err)
+			}
+		}()
+	*/
 
 	dev, err := fb.Open("/dev/fb0")
 	if err != nil {
@@ -135,7 +137,7 @@ func fbstatus() error {
 	gopherRect := scaleImage(gokrazyLogo.Bounds(), w/2, h/2-borderTop)
 	gopherRect = gopherRect.Add(image.Point{w / 2, 0})
 	padX := ((w / 2) - gopherRect.Size().X) / 2
-	padY := borderTop + ((h/2)-gopherRect.Size().Y)/2
+	padY := borderTop + ((h/2)-gopherRect.Size().Y)/2 - 50
 	gopherRect = gopherRect.Add(image.Point{padX, padY})
 
 	t1 := time.Now()
@@ -223,7 +225,7 @@ func fbstatus() error {
 	last := make([][][]string, 10)
 	var lastRender, lastCopy time.Duration
 	for {
-		if cons.Visible() {
+		if true /* cons.Visible() */ {
 			// --------------------------------------------------------------------------------
 			contents := make(map[string][]byte)
 			for path, fl := range files {
@@ -399,8 +401,10 @@ func fbstatus() error {
 		case <-ctx.Done():
 			// return to trigger the deferred cleanup function
 			return ctx.Err()
-		case <-cons.Redraw():
-			break // next iteration
+			/*
+				case <-cons.Redraw():
+					break // next iteration
+			*/
 		case <-tick:
 			break
 		}
