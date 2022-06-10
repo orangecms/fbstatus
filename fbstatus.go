@@ -18,6 +18,7 @@ import (
 	"math"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/gokrazy/stat/statexp"
 	"github.com/golang/freetype/truetype"
 	xdraw "golang.org/x/image/draw"
+	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/gofont/goitalic"
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/gofont/goregular"
@@ -117,6 +119,16 @@ func fbstatus() error {
 	statArea := image.Rect(0, h/2, w, h)
 
 	// draw the gokrazy gopher image
+	oscar, _, err := image.Decode(bytes.NewReader(oscarPNG))
+	if err != nil {
+		log.Print(err)
+	}
+
+	glenda, _, err := image.Decode(bytes.NewReader(glendaPNG))
+	if err != nil {
+		log.Print(err)
+	}
+
 	gokrazyLogo, _, err := image.Decode(bytes.NewReader(gokrazyLogoPNG))
 	if err != nil {
 		log.Print(err)
@@ -130,15 +142,23 @@ func fbstatus() error {
 	buffer := image.NewRGBA(bounds)
 	draw.Draw(buffer, bounds, &image.Uniform{bgcolor}, image.Point{}, draw.Src)
 
-	// place the gopher in the top right half (centered)
-	const borderTop = 150
-	gopherRect := scaleImage(gokrazyLogo.Bounds(), w/2, h/2-borderTop)
-	gopherRect = gopherRect.Add(image.Point{w / 2, 0})
-	padX := ((w / 2) - gopherRect.Size().X) / 2
-	padY := borderTop + ((h/2)-gopherRect.Size().Y)/2
-	gopherRect = gopherRect.Add(image.Point{padX, padY})
+	hw := w / 2
+	hh := h / 2
+	qw := w / 4
+	qh := h / 4
+
+	glendaRect := scaleImage(glenda.Bounds(), hw, qh)
+	glendaRect = glendaRect.Add(image.Point{hw + 10, qh})
+
+	oscarRect := scaleImage(oscar.Bounds(), hw, hh/3)
+	oscarRect = oscarRect.Add(image.Point{hw + 10 + hw/3, qh})
+
+	gopherRect := scaleImage(gokrazyLogo.Bounds(), hw, qh)
+	gopherRect = gopherRect.Add(image.Point{hw + qw*5/4, qh})
 
 	t1 := time.Now()
+	xdraw.BiLinear.Scale(buffer, oscarRect, oscar, oscar.Bounds(), draw.Over, nil)
+	xdraw.BiLinear.Scale(buffer, glendaRect, glenda, glenda.Bounds(), draw.Over, nil)
 	xdraw.BiLinear.Scale(buffer, gopherRect, gokrazyLogo, gokrazyLogo.Bounds(), draw.Over, nil)
 	log.Printf("gopher scaled in %v", time.Since(t1))
 
@@ -183,8 +203,18 @@ func fbstatus() error {
 	}
 	ggopher.Clear()
 	ggopher.SetRGB(1, 1, 1)
-	padX = ((w / 2) - 200) / 2
-	ggopher.DrawString("gokrazy!", float64(padX)-90, 125)
+	padX := hw - 100
+	ggopher.DrawString("gokrazy!", float64(padX), 40)
+	ggopher.DrawString("= cpud =", float64(padX)-100, 40)
+
+	boldfont, err := truetype.Parse(gobold.TTF)
+	if err != nil {
+		return err
+	}
+	boldface := truetype.NewFace(boldfont, &truetype.Options{Size: 10 * size})
+	ggopher.SetFontFace(boldface)
+	ggopher.SetRGB(.3098, .3176, .6627) // #4f51a9
+	ggopher.DrawString("https://osfc.io/", float64(qw*3/4), float64(qh*3/5))
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -274,11 +304,11 @@ func fbstatus() error {
 				" buff ",
 				" cach",
 			} {
-				gstat.DrawString(hdr, statx, 50)
+				gstat.DrawString(hdr, statx, 30)
 				statx += float64(len(hdr)) * em
 			}
 
-			staty := float64(110)
+			staty := float64(50)
 			statx = float64(50)
 
 			for idx := range last {
@@ -326,6 +356,13 @@ func fbstatus() error {
 
 			// --------------------------------------------------------------------------------
 
+			model := gokrazy.Model()
+			if len(model) > 0 {
+				model += ", "
+			}
+			hostSys := fmt.Sprintf("%s%s on %s (%dx)",
+				model, runtime.GOOS, runtime.GOARCH, runtime.NumCPU())
+
 			t2 := time.Now()
 			{
 				r, gg, b, a := bgcolor.RGBA()
@@ -338,7 +375,8 @@ func fbstatus() error {
 			g.Clear()
 			g.SetRGB(1, 1, 1)
 			lines := []string{
-				"host “" + hostname + "” (" + gokrazy.Model() + ")",
+				"TODO: What else should we display?",
+				"host “" + hostname + "” (" + hostSys + ")",
 				"time: " + time.Now().Format(time.RFC3339),
 			}
 			if up, err := uptime(); err == nil {
@@ -361,7 +399,7 @@ func fbstatus() error {
 			if addrs, err := gokrazy.PublicInterfaceAddrs(); err == nil {
 				lines = append(lines, addrs...)
 			}
-			texty := 100
+			texty := 45
 
 			for _, line := range lines {
 				g.DrawString(line, 50, float64(texty))
@@ -370,7 +408,7 @@ func fbstatus() error {
 			leftHalf := image.Rect(0, 0, w/2, h)
 			draw.Draw(buffer, leftHalf, g.Image(), image.ZP, draw.Src)
 
-			rightHalf := image.Rect(w/2, 0, w, 150)
+			rightHalf := image.Rect(w/2, 0, w, 85)
 			draw.Draw(buffer, rightHalf, ggopher.Image(), image.ZP, draw.Src)
 
 			// display stat output in the bottom half
@@ -452,6 +490,12 @@ func copyRGBAtoBGR565(dst *fbimage.BGR565, src *image.RGBA) {
 		}
 	}
 }
+
+//go:embed "glenda.png"
+var glendaPNG []byte
+
+//go:embed "oscar.png"
+var oscarPNG []byte
 
 //go:embed "gokrazy.png"
 var gokrazyLogoPNG []byte
