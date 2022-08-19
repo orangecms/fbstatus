@@ -204,8 +204,8 @@ func fbstatus() error {
 	ggopher.Clear()
 	ggopher.SetRGB(1, 1, 1)
 	padX := hw - 100
-	ggopher.DrawString("gokrazy!", float64(padX), 40)
-	ggopher.DrawString("= cpud =", float64(padX)-100, 40)
+	ggopher.DrawString("HELLOOO!", float64(padX), 40)
+	ggopher.DrawString("= CPUD =", float64(padX)-100, 40)
 
 	boldfont, err := truetype.Parse(gobold.TTF)
 	if err != nil {
@@ -214,7 +214,7 @@ func fbstatus() error {
 	boldface := truetype.NewFace(boldfont, &truetype.Options{Size: 10 * size})
 	ggopher.SetFontFace(boldface)
 	ggopher.SetRGB(.3098, .3176, .6627) // #4f51a9
-	ggopher.DrawString("https://osfc.io/", float64(qw*3/4), float64(qh*3/5))
+	ggopher.DrawString("Come to https://osfc.io/ !", float64(qw*3/4), float64(qh*3/5))
 
 	hostname, err := os.Hostname()
 	if err != nil {
