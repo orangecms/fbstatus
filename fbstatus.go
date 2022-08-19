@@ -164,7 +164,7 @@ func fbstatus() error {
 
 	g := gg.NewContext(w/2, h/2)
 	gstat := gg.NewContext(w, h/2)
-	ggopher := gg.NewContext(w/2, h/2)
+	ggopher := gg.NewContext(w/2, h/4)
 
 	// draw textual information in a block of key: value details
 	font, err := truetype.Parse(goregular.TTF)
@@ -204,8 +204,7 @@ func fbstatus() error {
 	ggopher.Clear()
 	ggopher.SetRGB(1, 1, 1)
 	padX := hw - 100
-	ggopher.DrawString("HELLOOO!", float64(padX), 40)
-	ggopher.DrawString("= CPUD =", float64(padX)-100, 40)
+	ggopher.DrawString("= CPUD =", float64(padX), 40)
 
 	boldfont, err := truetype.Parse(gobold.TTF)
 	if err != nil {
@@ -214,7 +213,7 @@ func fbstatus() error {
 	boldface := truetype.NewFace(boldfont, &truetype.Options{Size: 10 * size})
 	ggopher.SetFontFace(boldface)
 	ggopher.SetRGB(.3098, .3176, .6627) // #4f51a9
-	ggopher.DrawString("Come to https://osfc.io/ !", float64(qw*3/4), float64(qh*3/5))
+	ggopher.DrawString("Come to https://osfc.io/ !", float64(qw*5/8), float64(qh*3/6))
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -281,7 +280,7 @@ func fbstatus() error {
 			em, _ := gstat.MeasureString("m")
 
 			// render header
-			statx := float64(50)
+			statx := float64(5)
 			// TODO: look into why MeasureString/DrawString are not monospace-correct
 			for _, hdr := range []string{
 				" usr",
@@ -375,7 +374,6 @@ func fbstatus() error {
 			g.Clear()
 			g.SetRGB(1, 1, 1)
 			lines := []string{
-				"TODO: What else should we display?",
 				"host “" + hostname + "” (" + hostSys + ")",
 				"time: " + time.Now().Format(time.RFC3339),
 			}
@@ -399,10 +397,10 @@ func fbstatus() error {
 			if addrs, err := gokrazy.PublicInterfaceAddrs(); err == nil {
 				lines = append(lines, addrs...)
 			}
-			texty := 45
+			texty := 15
 
 			for _, line := range lines {
-				g.DrawString(line, 50, float64(texty))
+				g.DrawString(line, 5, float64(texty))
 				texty += int(g.FontHeight() * lineSpacing)
 			}
 			leftHalf := image.Rect(0, 0, w/2, h)
