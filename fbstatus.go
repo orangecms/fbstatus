@@ -42,6 +42,8 @@ import (
 	_ "image/png"
 )
 
+const tagline = "gokrazy!"
+
 /* Define the layout fractions.
  *
  * There are two columns at the top, and the bottom is just one part.
@@ -216,7 +218,7 @@ func newStatusDrawer(img draw.Image) (*statusDrawer, error) {
 	ggopher.SetRGB(1, 1, 1)
 	// padding within the gopher column
 	padX = (gopherW - int(66*scaleFactor)) / 2
-	ggopher.DrawString("gokrazy!", float64(padX)-(30*scaleFactor), 42*scaleFactor)
+	ggopher.DrawString(tagline, float64(padX)-(30*scaleFactor), 42*scaleFactor)
 	// Only render the tagline once, which is part of the right column.
 	// This and the gopher do not need to be redrawn.
 	rightCol := image.Rect(hostW, 0, w, int(50*scaleFactor))
