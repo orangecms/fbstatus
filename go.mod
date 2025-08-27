@@ -15,4 +15,6 @@ require (
 	github.com/gokrazy/internal v0.0.0-20220807084007-5675ab8eae51 // indirect
 	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/mdlayher/watchdog v0.0.0-20201005150459-8bdc4f41966b // indirect
+	github.com/zachomedia/go-bdf v0.0.0-20220611021443-a3af701111be // indirect
+	golang.org/x/text v0.3.6 // indirect
 )

@@ -33,7 +33,9 @@ import (
 	"github.com/gokrazy/gokrazy"
 	"github.com/gokrazy/stat/statexp"
 	"github.com/golang/freetype/truetype"
+	bdf "github.com/zachomedia/go-bdf"
 	xdraw "golang.org/x/image/draw"
+	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/font/gofont/goitalic"
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/gofont/goregular"
@@ -64,8 +66,8 @@ const tagline = "gokrazy!"
  * |                         |
  *  -------------------------
  */
-const leftFrac = 1.0 / 2.0
-const topFrac = 1.0 / 2.0
+const leftFrac = 9.0 / 16.0
+const topFrac = 3.0 / 7.0
 
 func uptime() (string, error) {
 	file, err := os.Open("/proc/uptime")
@@ -123,7 +125,6 @@ type statusDrawer struct {
 	modules     []statexp.ProcessAndFormatter
 	ghost       *gg.Context
 	gstat       *gg.Context
-	ggopher     *gg.Context
 
 	// state
 	slowPathNotified     bool
@@ -154,7 +155,7 @@ func newStatusDrawer(img draw.Image) (*statusDrawer, error) {
 		return nil, err
 	}
 
-	bgcolor := color.RGBA{R: 50, G: 50, B: 50, A: 255}
+	bgcolor := color.RGBA{R: 2, G: 2, B: 2, A: 255}
 
 	// We do all rendering into an *image.RGBA buffer, for which all drawing
 	// operations are optimized in Go. Only at the very end do we copy the
@@ -164,47 +165,61 @@ func newStatusDrawer(img draw.Image) (*statusDrawer, error) {
 
 	// NOTE: The gopher is drawn exactly once. Other areas are being refreshed.
 	// place the gopher in the top right column (centered)
-	borderTop := int(50 * scaleFactor)
-	gopherRect := scaleImage(gokrazyLogo.Bounds(), gopherW, topH-borderTop)
+	gopherRect := scaleImage(gokrazyLogo.Bounds(), gopherW, topH)
 	// add the left column width
 	gopherRect = gopherRect.Add(image.Point{hostW, 0})
 	// add the padding between column start and Gopher start for centering
 	padX := (gopherW - gopherRect.Size().X) / 2
-	padY := borderTop + (topH-gopherRect.Size().Y)/2
+	padY := 10
 	gopherRect = gopherRect.Add(image.Point{padX, padY})
 
 	t1 := time.Now()
 	xdraw.BiLinear.Scale(buffer, gopherRect, gokrazyLogo, gokrazyLogo.Bounds(), draw.Over, nil)
-	log.Printf("gopher scaled in %v", time.Since(t1))
+	log.Printf("gopher at %v scaled in %v", gopherRect.Min, time.Since(t1))
 
 	ghost := gg.NewContext(hostW, topH)
 	ggopher := gg.NewContext(gopherW, topH)
 	gstat := gg.NewContext(w, bottomH)
 
-	// draw textual information in a block of key: value details
-	font, err := truetype.Parse(goregular.TTF)
-	if err != nil {
-		return nil, err
-	}
-
-	size := float64(16)
+	size := float64(10)
 	size *= scaleFactor
-	face := truetype.NewFace(font, &truetype.Options{Size: size})
-	ghost.SetFontFace(face)
 
-	monofont, err := truetype.Parse(gomono.TTF)
-	if err != nil {
-		return nil, err
-	}
-	monoface := truetype.NewFace(monofont, &truetype.Options{Size: size})
-	gstat.SetFontFace(monoface)
+	isbig := false
 
-	italicfont, err := truetype.Parse(goitalic.TTF)
-	if err != nil {
-		return nil, err
+	// draw textual information in a block of key: value details
+	if isbig {
+		font, err := truetype.Parse(goregular.TTF)
+		if err != nil {
+			return nil, err
+		}
+		regularface := truetype.NewFace(font, &truetype.Options{Size: size})
+
+		italicfont, err := truetype.Parse(goitalic.TTF)
+		if err != nil {
+			return nil, err
+		}
+		italicface := truetype.NewFace(italicfont, &truetype.Options{Size: size})
+
+		monofont, err := truetype.Parse(gomono.TTF)
+		if err != nil {
+			return nil, err
+		}
+		monoface := truetype.NewFace(monofont, &truetype.Options{Size: size})
+
+		ghost.SetFontFace(regularface)
+		ggopher.SetFontFace(italicface)
+		gstat.SetFontFace(monoface)
+	} else {
+		spleen, err := bdf.Parse(spleen5x8)
+		if err != nil {
+			return nil, err
+		}
+		spleenf := spleen.NewFace()
+
+		ghost.SetFontFace(spleenf)
+		ggopher.SetFontFace(basicfont.Face7x13)
+		gstat.SetFontFace(spleenf)
 	}
-	italicface := truetype.NewFace(italicfont, &truetype.Options{Size: 2 * size})
-	ggopher.SetFontFace(italicface)
 
 	{
 		r, gg, b, a := bgcolor.RGBA()
@@ -216,13 +231,18 @@ func newStatusDrawer(img draw.Image) (*statusDrawer, error) {
 	}
 	ggopher.Clear()
 	ggopher.SetRGB(1, 1, 1)
+
 	// padding within the gopher column
-	padX = (gopherW - int(66*scaleFactor)) / 2
-	ggopher.DrawString(tagline, float64(padX)-(30*scaleFactor), 42*scaleFactor)
+	// TODO: padX = (gopherW - int(66*scaleFactor)) / 2
+	padX = 1
+	// NOTE: This is the _bottom left_ of the text, so add size. (or is it?!)
+	// TODO: padY = (gopherW-200)/2 - 90
+	padY = int(size) + 4
+	ggopher.DrawString(tagline, float64(padX), float64(padY))
 	// Only render the tagline once, which is part of the right column.
 	// This and the gopher do not need to be redrawn.
-	rightCol := image.Rect(hostW, 0, w, int(50*scaleFactor))
-	draw.Draw(buffer, rightCol, ggopher.Image(), image.ZP, draw.Src)
+	rightCol := image.Rect(hostW, 0, w, 16)
+	draw.Draw(buffer, rightCol, ggopher.Image(), image.ZP, draw.Over)
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -273,19 +293,22 @@ func newStatusDrawer(img draw.Image) (*statusDrawer, error) {
 }
 
 func (d *statusDrawer) draw1(ctx context.Context) error {
-	const lineSpacing = 1.5
+	const lineSpacing = 1.2
 
 	// --------------------------------------------------------------------------------
 	contents := make(map[string][]byte)
 	for path, fl := range d.files {
 		if _, err := fl.Seek(0, io.SeekStart); err != nil {
+			log.Printf("failed to seek: %v", path)
 			contents[path] = []byte("seek error")
 		}
 		b, err := ioutil.ReadAll(fl)
 		if err != nil {
+			log.Printf("failed to read: %v", path)
 			contents[path] = []byte("read error")
+		} else {
+			contents[path] = b
 		}
-		contents[path] = b
 	}
 
 	{
@@ -303,11 +326,11 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 	em, _ := d.gstat.MeasureString("m")
 
 	// offset from top left corner
-	xOffset := 3.0 * em
-	yOffset := 3.0 * em
+	xOffset := 0.5 * em
+	yOffset := 2.0 * em
 	// extra spacing per additional row/column
-	xSpacing := 3.0 * em
-	ySpacing := 3.0 * em
+	xSpacing := 1.0 * em
+	ySpacing := 1.0 * em
 
 	statx := xOffset
 	staty := yOffset
@@ -342,7 +365,7 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 	// reset
 	statx = xOffset
 	// add some more space from the top for actual status lines
-	staty = yOffset + ySpacing
+	staty = yOffset + d.gstat.FontHeight()*lineSpacing
 
 	for idx := range d.last {
 		if idx == len(d.last)-1 {
@@ -387,6 +410,7 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 		staty += d.gstat.FontHeight() * lineSpacing
 	}
 
+	// host information
 	// --------------------------------------------------------------------------------
 
 	t2 := time.Now()
@@ -400,22 +424,43 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 	}
 	d.ghost.Clear()
 	d.ghost.SetRGB(1, 1, 1)
-	lines := []string{
-		"host “" + d.hostname + "” (" + gokrazy.Model() + ")",
-		"time: " + time.Now().Format(time.RFC3339),
-	}
-	if up, err := uptime(); err == nil {
+
+	lines := []string{}
+
+	lines = append(lines, gokrazy.Model())
+
+	isbig := false
+	if isbig {
+		lines = append(lines, "host “"+d.hostname+"” ("+gokrazy.Model()+")")
+		lines = append(lines, time.Now().Format(time.RFC3339))
+
+		// add uptime
 		last := len(lines) - 1
-		lines[last] += ", up for " + up
+		if up, err := uptime(); err == nil {
+			lines[last] += ", up for " + up
+		}
+		// add render timing
+		if d.lastRender > 0 || d.lastCopy > 0 {
+			lines[last] += fmt.Sprintf(", fb: draw %v, cp %v",
+				d.lastRender.Round(time.Millisecond),
+				d.lastCopy.Round(time.Millisecond),
+			)
+		}
+	} else {
+		lines = append(lines, time.Now().Format(time.TimeOnly)+"  "+d.hostname)
+		if up, err := uptime(); err == nil {
+			lines = append(lines, "up: "+up)
+		}
+		if d.lastRender > 0 || d.lastCopy > 0 {
+			drawtime := fmt.Sprintf("fb: draw %v", d.lastRender.Round(time.Millisecond))
+			lines = append(lines, drawtime)
+		}
 	}
-	if d.lastRender > 0 || d.lastCopy > 0 {
-		last := len(lines) - 1
-		lines[last] += fmt.Sprintf(", fb: draw %v, cp %v",
-			d.lastRender.Round(time.Millisecond),
-			d.lastCopy.Round(time.Millisecond))
+
+	if isbig {
+		lines = append(lines, "")
+		lines = append(lines, "Private IP addresses:")
 	}
-	lines = append(lines, "")
-	lines = append(lines, "Private IP addresses:")
 	if addrs, err := gokrazy.PrivateInterfaceAddrs(); err == nil {
 		sort.Strings(addrs)
 		for _, addr := range addrs {
@@ -428,8 +473,10 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 			lines = append(lines, addr)
 		}
 	}
-	lines = append(lines, "")
-	lines = append(lines, "Public IP addresses:")
+	if isbig {
+		lines = append(lines, "")
+		lines = append(lines, "Public IP addresses:")
+	}
 	if addrs, err := gokrazy.PublicInterfaceAddrs(); err == nil {
 		sort.Strings(addrs)
 		lines = append(lines, addrs...)
@@ -588,6 +635,9 @@ func copyRGBAtoBGRA(dst *fbimage.BGRA, src *image.RGBA) {
 
 //go:embed "gokrazy.png"
 var gokrazyLogoPNG []byte
+
+//go:embed "spleen/spleen-5x8.bdf"
+var spleen5x8 []byte
 
 func main() {
 	var cpuprofile = flag.String("cpuprofile", "", "cpu profile")
