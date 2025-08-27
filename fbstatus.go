@@ -279,11 +279,11 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 	contents := make(map[string][]byte)
 	for path, fl := range d.files {
 		if _, err := fl.Seek(0, io.SeekStart); err != nil {
-			return err
+			contents[path] = []byte("seek error")
 		}
 		b, err := ioutil.ReadAll(fl)
 		if err != nil {
-			return err
+			contents[path] = []byte("read error")
 		}
 		contents[path] = b
 	}
