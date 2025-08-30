@@ -112,6 +112,17 @@ var colorNameToRGBA = map[string]color.NRGBA{
 	"white":    color.NRGBA{R: 0xEE, G: 0xEE, B: 0xEC},
 }
 
+// NOTE: These correspond with the modules.
+var statHeaders = [][]string{
+	{"usr", "sys", "idl", "wai", "stl"},
+	{"read", "writ"},
+	{"int ", "csw "},
+	{"recv", "send"},
+	{"used", "free", "buff", "cach"},
+}
+
+var activeModules = []int{0}
+
 type statusDrawer struct {
 	// config
 	img         draw.Image
@@ -125,6 +136,12 @@ type statusDrawer struct {
 	modules     []statexp.ProcessAndFormatter
 	ghost       *gg.Context
 	gstat       *gg.Context
+
+	em       float64
+	xOffset  float64
+	yOffset  float64
+	xSpacing float64
+	ySpacing float64
 
 	// state
 	slowPathNotified     bool
@@ -250,7 +267,11 @@ func newStatusDrawer(img draw.Image) (*statusDrawer, error) {
 	}
 
 	// --------------------------------------------------------------------------------
-	modules := statexp.DefaultModules()
+	defaultModules := statexp.DefaultModules()
+	var modules []statexp.ProcessAndFormatter
+	for _, m := range activeModules {
+		modules = append(modules, defaultModules[m])
+	}
 	files := make(map[string]*os.File)
 	for _, mod := range modules {
 		// When a stats module implements the FileContents() interface, we
@@ -274,6 +295,16 @@ func newStatusDrawer(img draw.Image) (*statusDrawer, error) {
 
 	// --------------------------------------------------------------------------------
 
+	// use the width only
+	em, _ := gstat.MeasureString("m")
+
+	// offset from top left corner
+	xOffset := 0.5 * em
+	yOffset := 2.0 * em
+	// extra spacing per additional row/column
+	xSpacing := 1.0 * em
+	ySpacing := 1.0 * em
+
 	return &statusDrawer{
 		img:         img,
 		bounds:      bounds,
@@ -287,6 +318,12 @@ func newStatusDrawer(img draw.Image) (*statusDrawer, error) {
 		bgcolor:     bgcolor,
 		ghost:       ghost,
 		gstat:       gstat,
+
+		em:       em,
+		xOffset:  xOffset,
+		yOffset:  yOffset,
+		xSpacing: xSpacing,
+		ySpacing: ySpacing,
 
 		last: make([][][]string, 10),
 	}, nil
@@ -321,50 +358,26 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 	d.gstat.Clear()
 	d.gstat.SetRGB(1, 1, 1)
 
-	// use the width only
-	em, _ := d.gstat.MeasureString("m")
+	statx := d.xOffset
+	staty := d.yOffset
 
-	// offset from top left corner
-	xOffset := 0.5 * em
-	yOffset := 2.0 * em
-	// extra spacing per additional row/column
-	xSpacing := 1.0 * em
-	ySpacing := 1.0 * em
-
-	statx := xOffset
-	staty := yOffset
-
-	// render header
+	// render column headers
 	// TODO: look into why MeasureString/DrawString are not monospace-correct
-	for _, hdr := range []string{
-		" usr",
-		" sys",
-		" idl",
-		" wai",
-		" stl",
-		" | ",
-		" read ",
-		" writ ",
-		" | ",
-		" int  ",
-		" csw  ",
-		" | ",
-		" recv ",
-		" send ",
-		" | ",
-		" used ",
-		" free ",
-		" buff ",
-		" cach",
-	} {
-		d.gstat.DrawString(hdr, statx, staty)
-		statx += float64(len(hdr)) * em
+	var headers []string
+	headers = statHeaders[activeModules[0]]
+	for _, i := range activeModules[1:] {
+		headers = append(headers, "|")
+		headers = append(headers, statHeaders[i]...)
+	}
+	for _, hdr := range headers {
+		d.gstat.DrawString(hdr, statx+d.xSpacing, staty)
+		statx += float64(len(hdr)+1) * d.em
 	}
 
 	// reset
-	statx = xOffset
+	statx = d.xOffset
 	// add some more space from the top for actual status lines
-	staty = yOffset + d.gstat.FontHeight()*lineSpacing
+	staty = d.yOffset + d.gstat.FontHeight()*lineSpacing
 
 	for idx := range d.last {
 		if idx == len(d.last)-1 {
@@ -388,10 +401,10 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 	d.last[len(d.last)-1] = lastrow
 
 	for _, lastrow := range d.last {
-		statx = xOffset
+		statx = d.xOffset
 		for _, modcols := range lastrow {
 			for _, colored := range modcols {
-				statx += em
+				statx += d.em
 				for idx, field := range strings.Split(strings.TrimPrefix(colored, "$"), "$") {
 
 					if idx%2 == 0 {
@@ -399,12 +412,11 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 						d.gstat.SetRGB255(int(col.R), int(col.G), int(col.B))
 					} else {
 						d.gstat.DrawString(field, statx, staty)
-						statx += float64(len(field)) * em
+						statx += float64(len(field)) * d.em
 					}
 				}
-
 			}
-			statx += xSpacing
+			statx += d.xSpacing
 		}
 		staty += d.gstat.FontHeight() * lineSpacing
 	}
@@ -480,10 +492,10 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 		sort.Strings(addrs)
 		lines = append(lines, addrs...)
 	}
-	texty := int(yOffset + ySpacing)
+	texty := int(d.yOffset + d.ySpacing)
 
 	for _, line := range lines {
-		d.ghost.DrawString(line, xOffset, float64(texty))
+		d.ghost.DrawString(line, d.xOffset, float64(texty))
 		texty += int(d.ghost.FontHeight() * lineSpacing)
 	}
 
