@@ -300,13 +300,12 @@ func (d *statusDrawer) draw1(ctx context.Context) error {
 	for path, fl := range d.files {
 		if _, err := fl.Seek(0, io.SeekStart); err != nil {
 			log.Printf("failed to seek: %v", path)
-			contents[path] = []byte("seek error")
 		}
 		b, err := ioutil.ReadAll(fl)
 		if err != nil {
 			log.Printf("failed to read: %v", path)
-			contents[path] = []byte("read error")
 		} else {
+			log.Printf("%s", string(b))
 			contents[path] = b
 		}
 	}
